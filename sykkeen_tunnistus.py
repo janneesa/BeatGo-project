@@ -162,7 +162,3 @@ def detect():
             refresh(bpm, beat, v, min_value, max_value)
             DISPLAY_COUNT = 0
 
-
-while True:
-    detect()
-
