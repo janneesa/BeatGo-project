@@ -2,6 +2,7 @@ import time
 from machine import Pin, I2C, Timer, ADC
 from ssd1306 import SSD1306_I2C
 from fifo import Fifo
+from sykkeen_tunnistus import detect
 
 MENU_OPTIONS = ["HR MEASUREMENT",
                 "HRV ANALYSIS",
@@ -35,39 +36,45 @@ class Encoder:
         if not self.pressed:
             self.pressed = True
             self.fifo.put(0)
+            
+def main():
+    # SETUP, DEFAULT
+    rot = Encoder()
+    selected = 0 
+    rot_val = 0
+        
+    while True:
+        oled.fill(0)
+        for i, menu_item in enumerate(MENU_OPTIONS):
+            if selected == i:
+                menu_item = "> " + menu_item
+            oled.text(menu_item, 0, i * 10, 1)
+        oled.show()
+        if rot.fifo.has_data():
+            cur_rot_val = rot.fifo.get()
+            if cur_rot_val == 0 and rot.pressed == True:
+                rot.pressed = False
+                if selected == 0:
+                    print("HR Measurement")
+                    detect()
+                elif selected == 1:
+                    print("HRV Analysis")
+                elif selected == 2:
+                    print("Kubios")
+                elif selected == 3:
+                    print("History")
+            rot_val += cur_rot_val
+            if abs(rot_val) > 5:
+                selected += cur_rot_val
+                rot_val = 0
+                if selected >= len(MENU_OPTIONS):
+                    selected = 0
+                elif selected < 0:
+                    selected = len(MENU_OPTIONS)-1
+                    
+if __name__ == "__main__":
+    main()
 
-# SETUP, DEFAULT
-rot = Encoder()
-selected = 0 
-rot_val = 0
-
-while True:
-    oled.fill(0)
-    for i, menu_item in enumerate(MENU_OPTIONS):
-        if selected == i:
-            menu_item = "> " + menu_item
-        oled.text(menu_item, 0, i * 10, 1)
-    oled.show()
-    if rot.fifo.has_data():
-        cur_rot_val = rot.fifo.get()
-        if cur_rot_val == 0 and rot.pressed = True:
-            rot.pressed = False
-            if selected == 0:
-                print("HR Measurement")
-            elif selected == 1:
-                print("HRV Analysis")
-            elif selected == 2:
-                print("Kubios")
-            elif selected == 3:
-                print("History")
-        rot_val += cur_rot_val
-        if abs(rot_val) > 5:
-            selected += cur_rot_val
-            rot_val = 0
-            if selected >= len(MENU_OPTIONS):
-                selected = 0
-            elif selected < 0:
-                selected = len(MENU_OPTIONS)-1
 
 
 
