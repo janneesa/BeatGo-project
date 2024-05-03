@@ -23,6 +23,7 @@ class Encoder:
         self.fifo = Fifo(30, typecode = 'i')
         self.a.irq(handler = self.rot_handler, trigger = Pin.IRQ_RISING, hard=True)
         self.c.irq(handler = self.push_handler, trigger = Pin.IRQ_RISING, hard=True)
+        self.pressed = False
 
     def rot_handler(self, pin):
         if self.b():
@@ -31,7 +32,9 @@ class Encoder:
             self.fifo.put(1)
 
     def push_handler(self, pin):
-        self.fifo.put(0)
+        if not self.pressed:
+            self.pressed = True
+            self.fifo.put(0)
 
 # SETUP, DEFAULT
 rot = Encoder()
@@ -47,7 +50,8 @@ while True:
     oled.show()
     if rot.fifo.has_data():
         cur_rot_val = rot.fifo.get()
-        if cur_rot_val == 0:
+        if cur_rot_val == 0 and rot.pressed = True:
+            rot.pressed = False
             if selected == 0:
                 print("HR Measurement")
             elif selected == 1:
