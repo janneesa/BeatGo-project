@@ -170,22 +170,11 @@ def refresh_hr(bpm, beat, v, min_value, maxima, array):
         display.show()
 
 
-# refresh_hrv OLED
-def refresh_hrv(array):
-    global PPI
-
-    display.fill(0)
-    display.text("Collecting data", 0, 0)
-    display.text(str(len(array)) + "/60", 0, 10)
-
-    display.show()
-
-
 # Calculate average PPI
 def calculate_average_ppi(array):
     if array:
         ppi_average = sum(array) / len(array)
-        return ppi_average
+        return int(ppi_average)
 
 
 # Calculate average HR
@@ -193,7 +182,32 @@ def calculate_average_bpm(array):
     if array:
         average_hr = sum(array) / len(array)
         average_hr = 60000 / average_hr
-        return average_hr
+        return int(average_hr)
+
+
+#######################
+#   SDNN Calculator   #
+#######################
+def SDNN_calculator(data, PPI):
+    summary = 0
+    for i in data:
+        summary += (i - PPI) ** 2
+    SDNN = (summary / (len(data) - 1)) ** (1 / 2)
+    rounded_SDNN = round(SDNN, 0)
+    return int(rounded_SDNN)
+
+
+########################
+#   RMSSD Calculator   #
+########################
+def RMSSD_calculator(data):
+    i = 0
+    summary = 0
+    while i < len(data) - 1:
+        summary += (data[i + 1] - data[i]) ** 2
+        i += 1
+    rounded_RMSSD = round((summary / (len(data) - 1)) ** (1 / 2), 0)
+    return int(rounded_RMSSD)
 
 
 # Show if no finger detect_hred
@@ -253,13 +267,15 @@ def detect_hr():
         MAX_TRESHOLD = (min_value + max_value * 3) // 4  # 3/4
         MIN_TRESHOLD = (min_value + max_value) // 2  # 1/2
 
-        # Check if sample is more than treshold
+        #######################
+        # MAIN PEAK DETECTION #
+        #######################
         if v > MAX_TRESHOLD and beat == False:
             SAMPLE_TIME = new_time
             INTERVAL_MS = SAMPLE_TIME - LAST_SAMPLE_TIME
-            # Check if time between samples is more than 200
+            # Check if time between samples is more than 200ms
             if INTERVAL_MS > 200:
-                # If 10 beats have been detected we can calculate accurate bpm
+                # If 5 beats have been detected we can calculate accurate bpm
                 if PPI_AVERAGE_CALCULATED:
                     # Get latest PPI average
                     average = calculate_average_ppi(PPI_AVERAGE_ARRAY)
@@ -282,11 +298,11 @@ def detect_hr():
                     PPI_AVERAGE_ARRAY = PPI_AVERAGE_ARRAY[-MOVING_PPI_MAX:]
                     LAST_SAMPLE_TIME = SAMPLE_TIME
 
-                # If less than 10 beats have been detected. Add possible peak to peak intervals to array so average can be determined
+                # If less than 5 beats have been detected. Add possible peak to peak intervals to array so average can be determined
                 else:
                     BEATS_DETECTED += 1
                     beat = True
-                    if BEATS_DETECTED > 10:
+                    if BEATS_DETECTED > 5:
                         PPI_AVERAGE_CALCULATED = True
                         PPI_AVERAGE_ARRAY.append(INTERVAL_MS)
                         PPI_AVERAGE_ARRAY = PPI_AVERAGE_ARRAY[-MOVING_PPI_MAX:]
@@ -301,11 +317,25 @@ def detect_hr():
             DISPLAY_COUNT = 0
 
         if len(PPI_ALL_ARRAY) > 59:
-            x = calculate_average_ppi(PPI_ALL_ARRAY)
-            print(x)
-            x = 60000 / x
-            print(x)
+            average_ppi = calculate_average_ppi(PPI_ALL_ARRAY)
+            average_hr = calculate_average_bpm(PPI_ALL_ARRAY)
+            average_sdnn = SDNN_calculator(PPI_ALL_ARRAY, average_ppi)
+            average_rmssd = RMSSD_calculator(PPI_ALL_ARRAY)
             print(PPI_ALL_ARRAY)
+            display.fill(0)
+            display.text("PPI   " + str(average_ppi), 0, 0)
+            display.text("HR    " + str(average_hr), 0, 10)
+            display.text("SDNN  " + str(average_sdnn), 0, 20)
+            display.text("RMSSD " + str(average_rmssd), 0, 30)
+            display.show()
+            while not button.fifo.has_data():
+                time.sleep(0.004)
+
+            break
+
+        # Stop action if button is pressed
+        if button.fifo.has_data():
+            data = button.fifo.get()
             break
 
 
