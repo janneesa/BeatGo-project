@@ -8,21 +8,22 @@ import machine
 from machine import Pin, UART, I2C, Timer, ADC
 from ssd1306 import SSD1306_I2C
 from filefifo import Filefifo
+import urequests as requests
+import ujson
+import network
+from time import sleep
 
-################
-# ADC and OLED #
-################
+##################
+# ADC, OLED, LED #
+##################
 adc = ADC(26)
 
 display_WIDTH = 128
 display_HEIGHT = 64
-
 i2c = I2C(1, scl=Pin(15), sda=Pin(14), freq=400000)
 display = SSD1306_I2C(display_WIDTH, display_HEIGHT, i2c)
 
 micropython.alloc_emergency_exception_buf(200)
-
-last_y = 0
 
 led = Pin("LED", Pin.OUT)
 
@@ -36,17 +37,30 @@ MIN_BPM = 30
 SAMPLE_MAX_READING = 50000
 SAMPLE_MIN_READING = 20000
 
+# Network credentials
+ssid = 'Matin_verkko'
+password = 'Matin_salasana'
+
+# Kubios credentials
+APIKEY = "pbZRUi49X48I56oL1Lq8y8NDjq6rPfzX3AQeNo3a"
+CLIENT_ID = "3pjgjdmamlj759te85icf0lucv"
+CLIENT_SECRET = "111fqsli1eo7mejcrlffbklvftcnfl4keoadrdv1o45vt9pndlef"
+
+LOGIN_URL = "https://kubioscloud.auth.eu-west-1.amazoncognito.com/login"
+TOKEN_URL = "https://kubioscloud.auth.eu-west-1.amazoncognito.com/oauth2/token"
+REDIRECT_URI = "https://analysis.kubioscloud.com/v1/portal/login"
+
 #############
 # Variables #
 #############
 menu_option = 1
 last_time = 0
+last_y = 0
 
 
 ######################
 # Encoder and button #
 ######################
-
 # Encoder
 class Encoder:
     def __init__(self, rot_a, rot_b):
@@ -60,7 +74,6 @@ class Encoder:
             self.fifo.put(-1)
         else:
             self.fifo.put(1)
-
 
 # Create Rot
 rot = Encoder(10, 11)
@@ -80,7 +93,6 @@ class Button:
             last_time = new_time
             self.fifo.put(1)
 
-
 # Create button
 button = Button(12)
 
@@ -88,8 +100,6 @@ button = Button(12)
 #############
 # FUNCTIONS #
 #############
-
-# Main menu functions
 # Draw menu options
 def draw_menu():
     if menu_option <= 5:
@@ -131,15 +141,11 @@ def select_program():
     elif menu_option <= 15 and menu_option > 10:
         history_menu()
     elif menu_option <= 20 and menu_option > 15:
-        print("KUBIOS")
+        detect_hr()
 
-
-################
-# HR Functions #
-################
 
 # Refresh OLED
-def refresh_hr(bpm, beat, v, min_value, maxima, array):
+def refresh_oled(bpm, beat, v, min_value, maxima, array):
     global last_y, menu_option, PPI
 
     if menu_option <= 5:
@@ -152,16 +158,14 @@ def refresh_hr(bpm, beat, v, min_value, maxima, array):
             display.line(125, last_y, 126, y, 1)
             last_y = y
 
-        # Clear top text area.
         display.fill_rect(0, 0, 128, 16, 0)
 
-        # Show bpm on screen
         if bpm:
             display.text("%d bpm" % bpm, 12, 0)
 
         display.show()
 
-    elif menu_option <= 10 and menu_option > 5:
+    elif menu_option <= 10 and menu_option > 5 or menu_option <= 20 and menu_option > 15:
 
         display.fill(0)
         display.text("Collecting data", 0, 0)
@@ -209,7 +213,7 @@ def calculate_average_rmssd(data):
 # Show if no finger detect_hred
 def no_finger_detected():
     display.fill(0)
-    display.text("place finger on the sensor", 0, 0)
+    display.text("place finger", 0, 0)
     display.text("on the sensor", 0, 12)
     display.show()
     time.sleep(3)
@@ -239,7 +243,6 @@ def detect_hr():
     no_finger_detected()
 
     while True:
-
         new_time = utime.ticks_ms()
         if (new_time - LAST_TIME) > 4:
             LAST_TIME = new_time
@@ -256,8 +259,6 @@ def detect_hr():
 
         # Get min and max values to help determine tresholds
         min_value, max_value = min(CURRENT_250_SAMPLES), max(CURRENT_250_SAMPLES)
-        # Get average of 250 samples to help determine tresholds
-        average_sample = sum(CURRENT_250_SAMPLES) / len(CURRENT_250_SAMPLES)
 
         # Tresholds
         MAX_TRESHOLD = (min_value + max_value * 3) // 4  # 3/4
@@ -277,10 +278,10 @@ def detect_hr():
                     average = calculate_average_ppi(PPI_AVERAGE_ARRAY)
                     # Check if interval change is within range 70%-130% of the average PPI
                     if INTERVAL_MS > (average * 0.70) and INTERVAL_MS < (average * 1.30):
-                        # If doing HRV, append PPI to a list
-                        if menu_option <= 10 and menu_option > 5:
+                        # If doing HRV or KUBIOS, append PPI to a list
+                        if menu_option <= 10 and menu_option > 5 or menu_option <= 20 and menu_option > 15:
                             PPI_ALL_ARRAY.append(INTERVAL_MS)
-                        # Change beat detect_hred
+                        # Change beat detected
                         beat = True
                         # Calculate bpm from 10 latest average ppi
                         bpm = calculate_average_bpm(PPI_AVERAGE_ARRAY)
@@ -309,37 +310,51 @@ def detect_hr():
             beat = False
 
         if DISPLAY_COUNT > 10:
-            refresh_hr(bpm, beat, v, min_value, max_value, PPI_ALL_ARRAY)
+            refresh_oled(bpm, beat, v, min_value, max_value, PPI_ALL_ARRAY)
             DISPLAY_COUNT = 0
 
+        # Check if enaugh data has been collected for HRV or KUBIOS
         if len(PPI_ALL_ARRAY) > 59:
-            average_ppi = calculate_average_ppi(PPI_ALL_ARRAY)
-            average_hr = calculate_average_bpm(PPI_ALL_ARRAY)
-            average_sdnn = calculate_average_sdnn(PPI_ALL_ARRAY, average_ppi)
-            average_rmssd = calculate_average_rmssd(PPI_ALL_ARRAY)
-            print(PPI_ALL_ARRAY)
-            save_measurement(
-                str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd))
-            display.fill(0)
-            display.text("PPI   " + str(average_ppi), 0, 0)
-            display.text("HR    " + str(average_hr), 0, 10)
-            display.text("SDNN  " + str(average_sdnn) + "ms", 0, 20)
-            display.text("RMSSD " + str(average_rmssd) + "ms", 0, 30)
-            display.show()
-            while not button.fifo.has_data():
-                time.sleep(0.004)
+            if menu_option <= 10 and menu_option > 5:
 
-            if button.fifo.has_data():
-                data = button.fifo.get()
+                average_ppi = calculate_average_ppi(PPI_ALL_ARRAY)
+                average_hr = calculate_average_bpm(PPI_ALL_ARRAY)
+                average_sdnn = calculate_average_sdnn(PPI_ALL_ARRAY, average_ppi)
+                average_rmssd = calculate_average_rmssd(PPI_ALL_ARRAY)
+                save_measurement(
+                    str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd))
+                display.fill(0)
+                display.text("Results:", 0, 0)
+                display.text("PPI   " + str(average_ppi), 0, 10)
+                display.text("HR    " + str(average_hr), 0, 20)
+                display.text("SDNN  " + str(average_sdnn) + "ms", 0, 30)
+                display.text("RMSSD " + str(average_rmssd) + "ms", 0, 40)
+                display.show()
+                while not button.fifo.has_data():
+                    time.sleep(0.004)
 
-            led.off()
+                if button.fifo.has_data():
+                    data = button.fifo.get()
+                led.off()
+                break
 
-            break
+            elif menu_option <= 20 and menu_option > 15:
+                led.off()
+                display.fill(0)
+                display.text("Sending data...", 0, 0)
+                display.show()
+                kubios(PPI_ALL_ARRAY)
+
+                while not button.fifo.has_data():
+                    time.sleep(0.004)
+
+                if button.fifo.has_data():
+                    data = button.fifo.get()
+                break
 
         # Stop action if button is pressed
         if button.fifo.has_data():
             data = button.fifo.get()
-
             led.off()
             break
 
@@ -425,8 +440,65 @@ def save_measurement(data):
             file.write(line)
 
 
-display.fill(0)
-display.show()
+def connect():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.connect(ssid, password)
+    ip = wlan.ifconfig()[0]
+    return
+
+
+def kubios(array):
+    try:
+        connect()
+    except KeyboardInterrupt:
+        print("error while connecting")
+        machine.reset()
+
+    try:
+        response = requests.post(
+            url=TOKEN_URL,
+            data='grant_type=client_credentials&client_id={}'.format(CLIENT_ID),
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            auth=(CLIENT_ID, CLIENT_SECRET))
+
+        response = response.json()
+        access_token = response["access_token"]
+
+        data_set = {
+            "type": "RRI",
+            "data": array,
+            "analysis": {"type": "readiness"}
+        }
+
+        response = requests.post(
+            url="https://analysis.kubioscloud.com/v2/analytics/analyze",
+            headers={"Authorization": "Bearer {}".format(access_token),
+                     "X-Api-Key": APIKEY},
+            json=data_set)
+
+        response = response.json()
+
+        SNS = round(response['analysis']['sns_index'], 2)
+        PNS = round(response['analysis']['pns_index'], 2)
+        display.fill(0)
+        display.text('Kubios results:', 0, 0)
+        display.text('PNS:' + str(PNS), 0, 10)
+        display.text('SNS:' + str(SNS), 0, 20)
+        display.text('Press to go back', 0, 50)
+        display.show()
+
+        while not button.fifo.has_data():
+            time.sleep(0.004)
+
+        if button.fifo.has_data():
+            data = button.fifo.get()
+
+    except KeyboardInterrupt:
+        print("error in Kubios")
+        machine.reset()
+
+
 led.off()
 
 while True:
@@ -443,8 +515,6 @@ while True:
             menu_option = 1
         if menu_option < 0:
             menu_option = 20
-
-
 
 
 
