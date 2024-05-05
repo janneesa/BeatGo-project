@@ -185,28 +185,24 @@ def calculate_average_bpm(array):
         return int(average_hr)
 
 
-#######################
-#   SDNN Calculator   #
-#######################
-def SDNN_calculator(data, PPI):
-    summary = 0
+# Calculate SDNN
+def calculate_average_sdnn(data, PPI):
+    total = 0
     for i in data:
-        summary += (i - PPI) ** 2
-    SDNN = (summary / (len(data) - 1)) ** (1 / 2)
+        total += (i - PPI) ** 2
+    SDNN = (total / (len(data) - 1)) ** (1 / 2)
     rounded_SDNN = round(SDNN, 0)
     return int(rounded_SDNN)
 
 
-########################
-#   RMSSD Calculator   #
-########################
-def RMSSD_calculator(data):
+# Calculate RMSSD
+def calculate_average_rmssd(data):
     i = 0
-    summary = 0
+    total = 0
     while i < len(data) - 1:
-        summary += (data[i + 1] - data[i]) ** 2
+        total += (data[i + 1] - data[i]) ** 2
         i += 1
-    rounded_RMSSD = round((summary / (len(data) - 1)) ** (1 / 2), 0)
+    rounded_RMSSD = round((total / (len(data) - 1)) ** (1 / 2), 0)
     return int(rounded_RMSSD)
 
 
@@ -319,8 +315,8 @@ def detect_hr():
         if len(PPI_ALL_ARRAY) > 59:
             average_ppi = calculate_average_ppi(PPI_ALL_ARRAY)
             average_hr = calculate_average_bpm(PPI_ALL_ARRAY)
-            average_sdnn = SDNN_calculator(PPI_ALL_ARRAY, average_ppi)
-            average_rmssd = RMSSD_calculator(PPI_ALL_ARRAY)
+            average_sdnn = calculate_average_sdnn(PPI_ALL_ARRAY, average_ppi)
+            average_rmssd = calculate_average_rmssd(PPI_ALL_ARRAY)
             print(PPI_ALL_ARRAY)
             save_measurement(
                 str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd))
