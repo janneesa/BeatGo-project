@@ -120,8 +120,7 @@ def draw_menu():
         display.text("  HISTORY", 0, 20)
         display.text("> KUBIOS", 0, 30)
         display.show()
-
-
+        
 # Select Wanted program
 def select_program():
     if menu_option <= 5:
@@ -129,7 +128,7 @@ def select_program():
     elif menu_option <= 10 and menu_option > 5:
         detect_hr()
     elif menu_option <= 15 and menu_option > 10:
-        print("HISTORY")
+        history_menu()
     elif menu_option <= 20 and menu_option > 15:
         print("KUBIOS")
 
@@ -322,6 +321,7 @@ def detect_hr():
             average_sdnn = SDNN_calculator(PPI_ALL_ARRAY, average_ppi)
             average_rmssd = RMSSD_calculator(PPI_ALL_ARRAY)
             print(PPI_ALL_ARRAY)
+            save_measurement(str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd))
             display.fill(0)
             display.text("PPI   " + str(average_ppi), 0, 0)
             display.text("HR    " + str(average_hr), 0, 10)
@@ -337,8 +337,85 @@ def detect_hr():
         if button.fifo.has_data():
             data = button.fifo.get()
             break
-
-
+        
+def history_menu():
+    data_history = []
+    selected = 0
+    rot_val = 0
+    try:
+        file = open("history.txt", "r")
+    except OSError:
+        file = open("history.txt", "w+")
+    
+    for line in file:
+        line = line.strip()
+        line = line.split(",")
+        data_history.append([f"PPI: {line[0]}", f"HR: {line[1]}", f"SDNN: {line[2]}", f"RMSSD: {line[3]}"])
+        
+    data_history.reverse()
+            
+    while True:
+        display.fill(0)
+        
+        for i in range(len(data_history)):
+            if selected == i:
+                menu_text = f"> MEASUREMENT {i+1}"
+            else:
+                menu_text = f"MEASUREMENT {i+1}"
+            display.text(menu_text, 0, i * 10, 1)
+            
+        back_text = "BACK"
+        
+        if selected == len(data_history):
+            back_text = "> " + back_text
+        display.text(back_text, 0, 10 * len(data_history), 1)
+        display.show()
+                
+        if button.fifo.has_data():
+            button.fifo.get()
+            if 0 <= selected < len(data_history):
+                show_measurement(data_history[selected])
+                continue
+            elif selected == len(data_history):
+                break
+        
+        if rot.fifo.has_data():
+            rot_data = rot.fifo.get()
+            rot_val += rot_data
+            if abs(rot_val) > 5:
+                selected += rot_data
+                rot_val = 0
+                if selected > len(data_history):
+                    selected = 0
+                elif selected < 0:
+                    selected = len(data_history)
+                    
+    file.close()
+    
+def show_measurement(data):
+    print(data)
+    display.fill(0)
+    for i, line in enumerate(data):
+        display.text(line, 0, i * 10)
+    display.show()
+    while not button.fifo.has_data():
+        pass
+    button.fifo.get()
+        
+def save_measurement(data):
+    try:
+        with open("history.txt", "r") as file:
+            lines = file.readlines()
+        print(lines)
+        lines.append(data + "\n")
+    except OSError:
+        with open("history.txt", "w+") as file:
+            lines = [data + "\n"]
+            
+    with open("history.txt", "w") as file:
+        for line in lines[-5:]:
+            file.write(line)
+        
 display.fill(0)
 display.show()
 led.off()
@@ -357,6 +434,7 @@ while True:
             menu_option = 1
         if menu_option < 0:
             menu_option = 20
+
 
 
 
