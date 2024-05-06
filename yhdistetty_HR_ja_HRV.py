@@ -12,6 +12,7 @@ import urequests as requests
 import ujson
 import network
 from time import sleep
+from umqtt.simple import MQTTClient
 
 ##################
 # ADC, OLED, LED #
@@ -38,8 +39,9 @@ SAMPLE_MAX_READING = 50000
 SAMPLE_MIN_READING = 20000
 
 # Network credentials
-ssid = 'Matin_verkko'
-password = 'Matin_salasana'
+SSID = "KME759_Group_2"
+PASSWORD = "group2budapest"
+BROKER_IP = "192.168.2.253"
 
 # Kubios credentials
 APIKEY = "pbZRUi49X48I56oL1Lq8y8NDjq6rPfzX3AQeNo3a"
@@ -322,14 +324,19 @@ def detect_hr():
                 average_sdnn = calculate_average_sdnn(PPI_ALL_ARRAY, average_ppi)
                 average_rmssd = calculate_average_rmssd(PPI_ALL_ARRAY)
                 
+                # There was a separate display here to inform the user that data is been sent through MQTT
+                # Removed, as the process mostly only takes a second or less, so it would only flash on the screen
                 current_time = utime.localtime()
                 
-                
-                
                 save_measurement(
-                    str(current_time[2]) + "." + str(current_time[1]) + "." + str(current_time[0]) + "," + str(current_time[3]) + ":" + str(current_time[4]) + "," +
-                    str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd)
+                    str(current_time[2]) + "." + str(current_time[1]) + "." + str(current_time[0]) + "," + str(current_time[3]) + ":" +
+                    str(current_time[4]) + "," +str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd)
                 )
+                connect_wlan()
+                send_mqtt(str(current_time[2]) + "." + str(current_time[1]) + "." + str(current_time[0]) + ", " + str(current_time[3]) + ":" +
+                    str(current_time[4]) + "\nPPI: " + str(average_ppi) + "\nHR: " + str(average_hr) + "\nSDNN: " + str(average_sdnn) + "\nRMSSD: " +
+                    str(average_rmssd) + "\n")
+                
                 display.fill(0)
                 display.text("Results:", 0, 0)
                 display.text("PPI   " + str(average_ppi), 0, 10)
@@ -446,17 +453,30 @@ def save_measurement(data):
             file.write(line)
 
 
-def connect():
+def connect_wlan():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
-    wlan.connect(ssid, password)
+    wlan.connect(SSID, PASSWORD)
     ip = wlan.ifconfig()[0]
-    return
+    return ip
 
+def send_mqtt(data):
+    topic = "hrv"
+    mqtt_client = MQTTClient("", BROKER_IP)
+    
+    try:
+        mqtt_client.connect(clean_session=True)
+    except Exception:
+        print("Failed to connect to MQTT...")
+        
+    try:
+        mqtt_client.publish(topic, data)
+    except Exception:
+        print("Failed to send to MQTT...")
 
 def kubios(array):
     try:
-        connect()
+        connect_wlan()
     except KeyboardInterrupt:
         print("error while connecting")
         machine.reset()
