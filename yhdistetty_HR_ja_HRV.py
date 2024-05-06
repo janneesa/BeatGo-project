@@ -321,8 +321,15 @@ def detect_hr():
                 average_hr = calculate_average_bpm(PPI_ALL_ARRAY)
                 average_sdnn = calculate_average_sdnn(PPI_ALL_ARRAY, average_ppi)
                 average_rmssd = calculate_average_rmssd(PPI_ALL_ARRAY)
+                
+                current_time = utime.localtime()
+                
+                
+                
                 save_measurement(
-                    str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd))
+                    str(current_time[2]) + "." + str(current_time[1]) + "." + str(current_time[0]) + "," + str(current_time[3]) + ":" + str(current_time[4]) + "," +
+                    str(average_ppi) + "," + str(average_hr) + "," + str(average_sdnn) + "," + str(average_rmssd)
+                )
                 display.fill(0)
                 display.text("Results:", 0, 0)
                 display.text("PPI   " + str(average_ppi), 0, 10)
@@ -364,14 +371,14 @@ def history_menu():
     selected = 0
     rot_val = 0
     try:
-        file = open("history.txt", "r")
+        file = open("history.csv", "r")
     except OSError:
-        file = open("history.txt", "w+")
+        file = open("history.csv", "w+")
 
     for line in file:
         line = line.strip()
         line = line.split(",")
-        data_history.append([f"PPI: {line[0]}", f"HR: {line[1]}", f"SDNN: {line[2]}", f"RMSSD: {line[3]}"])
+        data_history.append([f"{line[0]}", f"{line[1]}", f"PPI: {line[2]}", f"HR: {line[3]}", f"SDNN: {line[4]}", f"RMSSD: {line[5]}"])
 
     data_history.reverse()
 
@@ -379,10 +386,9 @@ def history_menu():
         display.fill(0)
 
         for i in range(len(data_history)):
+            menu_text = f"{line[0]}"
             if selected == i:
-                menu_text = f"> MEASUREMENT {i + 1}"
-            else:
-                menu_text = f"MEASUREMENT {i + 1}"
+                menu_text = "> " + menu_text
             display.text(menu_text, 0, i * 10, 1)
 
         back_text = "BACK"
@@ -427,15 +433,15 @@ def show_measurement(data):
 
 def save_measurement(data):
     try:
-        with open("history.txt", "r") as file:
+        with open("history.csv", "r") as file:
             lines = file.readlines()
         print(lines)
         lines.append(data + "\n")
     except OSError:
-        with open("history.txt", "w+") as file:
+        with open("history.csv", "w+") as file:
             lines = [data + "\n"]
 
-    with open("history.txt", "w") as file:
+    with open("history.csv", "w") as file:
         for line in lines[-5:]:
             file.write(line)
 
@@ -515,7 +521,3 @@ while True:
             menu_option = 1
         if menu_option < 0:
             menu_option = 20
-
-
-
-
