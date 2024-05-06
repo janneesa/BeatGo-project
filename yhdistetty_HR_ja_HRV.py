@@ -477,8 +477,8 @@ def send_mqtt(data):
 def kubios(array):
     try:
         connect_wlan()
-    except KeyboardInterrupt:
-        print("error while connecting")
+    except Exception as e:
+        print("Error while connecting:", str(e))
         machine.reset()
 
     try:
@@ -520,10 +520,19 @@ def kubios(array):
         if button.fifo.has_data():
             data = button.fifo.get()
 
-    except KeyboardInterrupt:
-        print("error in Kubios")
-        machine.reset()
 
+    except requests.exceptions.Timeout:
+        print("Request timed out")
+    except requests.exceptions.HTTPError as err:
+        print("HTTP error occurred:", err)
+    except requests.exceptions.RequestException as err:
+        print("Error during requests to external API:", err)
+    except KeyboardInterrupt:
+        print("Operation cancelled by user")
+        machine.reset()
+    except Exception as e:
+        print("Unexpected error:", str(e))
+        machine.reset()
 
 led.off()
 
