@@ -393,7 +393,7 @@ def history_menu():
         display.fill(0)
 
         for i in range(len(data_history)):
-            menu_text = f"{line[0]}"
+            menu_text = f"{data_history[i][0]}"
             if selected == i:
                 menu_text = "> " + menu_text
             display.text(menu_text, 0, i * 10, 1)
@@ -541,3 +541,4 @@ while True:
             menu_option = 1
         if menu_option < 0:
             menu_option = 20
+
