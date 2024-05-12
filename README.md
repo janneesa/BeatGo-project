@@ -23,3 +23,9 @@ The device uses proprietary algorithms to measure the peak-to-peak interval (PPI
 Various parameters like mean PPI, mean heart rate, SDNN, RMSSD, and Poincare plot shape parameters are analyzed using gathered interval data. 
 Additionally, the PPI data is wirelessly transmitted to the Kubios Cloud Service for further analysis, which provides recovery and stress indexes. 
 The results are displayed on an OLED screen, and a rotary knob allows user interaction for activities like initialization or restarting measurements.
+
+<br /><b>Contributors:</b>
+<ul>
+      <li>@janneesa</li>
+      <li>@mkksrl</li>
+</ul>
